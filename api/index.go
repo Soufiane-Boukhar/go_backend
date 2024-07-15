@@ -59,7 +59,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             }
             defer db.Close()
 
-            rows, err := db.Query("SELECT id, email, message, subject, full_name, tel FROM contacts")
+            rows, err := db.Query("SELECT id, email, message, subject, full_name, tel FROM contactsTours")
             if err != nil {
                 http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Query execution error:", err)
@@ -105,7 +105,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             }
             defer db.Close()
 
-            stmt, err := db.Prepare("INSERT INTO contacts (email, message, subject, full_name, tel) VALUES (?, ?, ?, ?, ?)")
+            stmt, err := db.Prepare("INSERT INTO contactsTours (email, message, subject, full_name, tel) VALUES (?, ?, ?, ?, ?)")
             if err != nil {
                 http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error preparing statement:", err)
