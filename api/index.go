@@ -181,7 +181,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                     return
                 }
 
-                // Convert []byte to string and then parse it into time.Time
                 dateStr := string(dateReservation)
                 dateTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
                 if err != nil {
