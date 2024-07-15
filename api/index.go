@@ -6,8 +6,8 @@ import (
     "fmt"
     "log"
     "net/http"
-    _ "github.com/go-sql-driver/mysql"
     "time"
+    _ "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -28,12 +28,12 @@ type Contact struct {
 }
 
 type Reservation struct {
-    ID              int             `json:"id"`
-    Tour            string          `json:"tour"`
-    DateReservation sql.NullTime    `json:"date_reservation"`
-    Name            string          `json:"name"`
-    Email           string          `json:"email"`
-    Tel             string          `json:"tel"`
+    ID              int       `json:"id"`
+    Tour            string    `json:"tour"`
+    DateReservation time.Time `json:"date_reservation"`
+    Name            string    `json:"name"`
+    Email           string    `json:"email"`
+    Tel             string    `json:"tel"`
 }
 
 const AllowedOrigin = "https://www.capalliance.ma/"
@@ -166,15 +166,39 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             defer rows.Close()
 
             var reservations []Reservation
-			for rows.Next() {
-				var reservation Reservation
-				if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &reservation.Email, &reservation.Tel); err != nil {
-					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-					log.Println("Error reading rows:", err)
-					return
-				}
-				reservations = append(reservations, reservation)
-			}
+            for rows.Next() {
+                var (
+                    id              int
+                    tour            string
+                    dateReservation []byte
+                    name            string
+                    email           string
+                    tel             string
+                )
+                if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel); err != nil {
+                    http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+                    log.Println("Error reading rows:", err)
+                    return
+                }
+
+                // Convert []byte to string and then parse it into time.Time
+                dateStr := string(dateReservation)
+                dateTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
+                if err != nil {
+                    http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
+                    log.Println("Error parsing date:", err)
+                    return
+                }
+
+                reservations = append(reservations, Reservation{
+                    ID:              id,
+                    Tour:            tour,
+                    DateReservation: dateTime,
+                    Name:            name,
+                    Email:           email,
+                    Tel:             tel,
+                })
+            }
 
             if err := rows.Err(); err != nil {
                 http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
