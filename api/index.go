@@ -6,5 +6,12 @@ import (
 )
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "Hello, test!")
+    switch r.URL.Path {
+    case "/":
+        fmt.Fprintf(w, "Welcome to the home page!")
+    case "/about":
+        fmt.Fprintf(w, "This is the about page.")
+    default:
+        http.NotFound(w, r)
+    }
 }
