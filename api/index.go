@@ -21,7 +21,7 @@ const (
 // Contact represents the structure of a contact in the database
 type Contact struct {
     ID    int    `json:"id"`
-    Name  string `json:"name"`
+    Message  string `json:"name"`
     Email string `json:"email"`
 }
 
@@ -39,7 +39,6 @@ func getDBConnection() (*sql.DB, error) {
     return db, nil
 }
 
-// Handler processes HTTP requests and interacts with the database
 func Handler(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
     case "/":
@@ -55,7 +54,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         }
         defer db.Close()
 
-        rows, err := db.Query("SELECT id, name, email FROM contacts")
+        rows, err := db.Query("SELECT id, message, email FROM contacts")
         if err != nil {
             http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
             log.Println("Query execution error:", err)
@@ -66,7 +65,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         var contacts []Contact
         for rows.Next() {
             var contact Contact
-            if err := rows.Scan(&contact.ID, &contact.Name, &contact.Email); err != nil {
+            if err := rows.Scan(&contact.ID, &contact.Message, &contact.Email); err != nil {
                 http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error reading rows:", err)
                 return
