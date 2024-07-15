@@ -175,7 +175,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                     email           string
                     tel             string
                 )
-                if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel); err != nil {
+    
+				if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel); err != nil {
                     http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                     log.Println("Error reading rows:", err)
                     return
