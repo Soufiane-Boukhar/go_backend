@@ -8,6 +8,7 @@ import (
     "net/http"
     _ "github.com/go-sql-driver/mysql"
     "time"
+    "strconv"
 )
 
 const (
@@ -168,11 +169,22 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             var reservations []Reservation
             for rows.Next() {
                 var reservation Reservation
-                if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &reservation.Email, &reservation.Tel); err != nil {
+                var dateReservation string 
+
+                if err := rows.Scan(&reservation.ID, &reservation.Tour, &dateReservation, &reservation.Name, &reservation.Email, &reservation.Tel); err != nil {
                     http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                     log.Println("Error reading rows:", err)
                     return
                 }
+
+                parsedDate, err := time.Parse("2006-01-02 15:04:05", dateReservation)
+                if err != nil {
+                    http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
+                    log.Println("Error parsing date:", err)
+                    return
+                }
+                reservation.DateReservation = parsedDate
+
                 reservations = append(reservations, reservation)
             }
 
