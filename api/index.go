@@ -2,6 +2,7 @@ package handler
 
 import (
     "database/sql"
+    "encoding/json"
     "fmt"
     "log"
     "net/http"
@@ -16,6 +17,13 @@ const (
     dbPort     = 20744
     dbName     = "defaultdb"
 )
+
+// Contact represents the structure of a contact in the database
+type Contact struct {
+    ID    int    `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
+}
 
 // getDBConnection establishes a connection to the MySQL database
 func getDBConnection() (*sql.DB, error) {
@@ -35,9 +43,9 @@ func getDBConnection() (*sql.DB, error) {
 func Handler(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
     case "/":
-        fmt.Fprintf(w, "Welcome to the home page!")
+        http.Error(w, "Welcome to the home page!", http.StatusOK)
     case "/about":
-        fmt.Fprintf(w, "This is the about page.")
+        http.Error(w, "This is the about page.", http.StatusOK)
     case "/getContacts":
         db, err := getDBConnection()
         if err != nil {
@@ -55,17 +63,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         }
         defer rows.Close()
 
-        var contacts []string
+        var contacts []Contact
         for rows.Next() {
-            var id int
-            var name string
-            var email string
-            if err := rows.Scan(&id, &name, &email); err != nil {
+            var contact Contact
+            if err := rows.Scan(&contact.ID, &contact.Name, &contact.Email); err != nil {
                 http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error reading rows:", err)
                 return
             }
-            contacts = append(contacts, fmt.Sprintf("ID: %d, Name: %s, Email: %s", id, name, email))
+            contacts = append(contacts, contact)
         }
 
         if err := rows.Err(); err != nil {
@@ -74,8 +80,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        for _, contact := range contacts {
-            fmt.Fprintln(w, contact)
+        w.Header().Set("Content-Type", "application/json")
+        if err := json.NewEncoder(w).Encode(contacts); err != nil {
+            http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+            log.Println("Error encoding JSON:", err)
         }
     default:
         http.NotFound(w, r)
