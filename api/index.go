@@ -10,7 +10,6 @@ import (
     "time"
 )
 
-// Database connection parameters
 const (
     dbUser     = "avnadmin"
     dbPassword = "AVNS_wWoRjEZRmFF5NgjGCcY"
@@ -29,12 +28,12 @@ type Contact struct {
 }
 
 type Reservation struct {
-    ID              int        `json:"id"`
-    Tour            string     `json:"tour"`
-    DateReservation string     `json:"date_reservation"`
-    Name            string     `json:"name"`
-    Email           *string    `json:"email"`
-    Tel             string     `json:"tel"`
+    ID              int       `json:"id"`
+    Tour            string    `json:"tour"`
+    DateReservation time.Time `json:"date_reservation"`
+    Name            string    `json:"name"`
+    Email           string    `json:"email"`
+    Tel             string    `json:"tel"`
 }
 
 const AllowedOrigin = "https://www.capalliance.ma/"
@@ -49,17 +48,6 @@ func getDBConnection() (*sql.DB, error) {
         return nil, fmt.Errorf("error connecting to the database: %w", err)
     }
     return db, nil
-}
-
-func toStringPtr(s string) *string {
-    return &s
-}
-
-func toString(s *string) string {
-    if s == nil {
-        return ""
-    }
-    return *s
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
@@ -180,16 +168,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             var reservations []Reservation
             for rows.Next() {
                 var reservation Reservation
-                var email sql.NullString // Use sql.NullString to handle nullable fields
-                if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &email, &reservation.Tel); err != nil {
+                if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &reservation.Email, &reservation.Tel); err != nil {
                     http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                     log.Println("Error reading rows:", err)
                     return
-                }
-                if email.Valid {
-                    reservation.Email = toStringPtr(email.String)
-                } else {
-                    reservation.Email = nil
                 }
                 reservations = append(reservations, reservation)
             }
@@ -205,50 +187,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error encoding JSON:", err)
             }
-        } else if r.Method == http.MethodPost {
-            var reservation Reservation
-            if err := json.NewDecoder(r.Body).Decode(&reservation); err != nil {
-                http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
-                log.Println("Invalid request payload:", err)
-                return
-            }
-
-            db, err := getDBConnection()
-            if err != nil {
-                http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
-                log.Println("Database connection error:", err)
-                return
-            }
-            defer db.Close()
-
-            stmt, err := db.Prepare("INSERT INTO reservations (tour, date_reservation, name, email, tel) VALUES (?, ?, ?, ?, ?)")
-            if err != nil {
-                http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
-                log.Println("Error preparing statement:", err)
-                return
-            }
-            defer stmt.Close()
-
-            var email sql.NullString
-            if reservation.Email != nil {
-                email.String = *reservation.Email
-                email.Valid = true
-            } else {
-                email.Valid = false
-            }
-
-            _, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, email, reservation.Tel)
-            if err != nil {
-                http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
-                log.Println("Error executing statement:", err)
-                return
-            }
-
-            w.WriteHeader(http.StatusCreated)
-            fmt.Fprintln(w, "Reservation added successfully")
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
+
     default:
         http.NotFound(w, r)
     }
