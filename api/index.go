@@ -26,6 +26,15 @@ type Contact struct {
     Tel       string `json:"tel"`
 }
 
+type Reservation struct {
+	ID int `json:"id"`
+	Tour string `json:"tour"`
+	Date_reservation date `json:"date_reservation"`
+	Name string `json:"name"`
+	Email string `json:"email"`
+	Tel string `json:"tel"`
+}
+
 const AllowedOrigin = "https://www.capalliance.ma/"
 
 func getDBConnection() (*sql.DB, error) {
@@ -137,6 +146,47 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
+	case "/reservation":
+		if r.Method = MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error:" + err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			defer db.close()
+
+			rows, err := db.Query("select * from reservations")
+			if err != nil {
+				http.Error(w, "Error executing query: " + err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			defer rows.close()
+
+			var reservations []Reservation
+
+			for rows.next() {
+				var reservation Reservation
+				if err := rows.Scan($reservation.ID, $reservation.Tour, $reservation.Date_reservation, $reservation.Name, $reservation.Email, $reservation.Tel); err != nil{
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				reservations.append(reservations, reservation)
+			}
+
+			if err := rows.Err(); err != nil {
+                http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+                return
+            }
+
+            w.Header().Set("Content-Type", "application/json")
+            if err := json.NewEncoder(w).Encode(reservations); err != nil {
+                http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+            }
+		}
+
     default:
         http.NotFound(w, r)
     }
