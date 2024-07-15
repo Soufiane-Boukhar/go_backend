@@ -7,9 +7,10 @@ import (
     "log"
     "net/http"
     _ "github.com/go-sql-driver/mysql"
-    "time" // Import time package to use the time type for date_reservation
+    "time"
 )
 
+// Database connection parameters
 const (
     dbUser     = "avnadmin"
     dbPassword = "AVNS_wWoRjEZRmFF5NgjGCcY"
@@ -28,12 +29,12 @@ type Contact struct {
 }
 
 type Reservation struct {
-    ID             int       `json:"id"`
-    Tour           string    `json:"tour"`
-    DateReservation time.Time `json:"date_reservation"`
-    Name           string    `json:"name"`
-    Email          *string   `json:"email"`
-    Tel            string    `json:"tel"`
+    ID              int        `json:"id"`
+    Tour            string     `json:"tour"`
+    DateReservation string     `json:"date_reservation"`
+    Name            string     `json:"name"`
+    Email           *string    `json:"email"`
+    Tel             string     `json:"tel"`
 }
 
 const AllowedOrigin = "https://www.capalliance.ma/"
@@ -48,6 +49,17 @@ func getDBConnection() (*sql.DB, error) {
         return nil, fmt.Errorf("error connecting to the database: %w", err)
     }
     return db, nil
+}
+
+func toStringPtr(s string) *string {
+    return &s
+}
+
+func toString(s *string) string {
+    if s == nil {
+        return ""
+    }
+    return *s
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +172,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             rows, err := db.Query("SELECT id, tour, date_reservation, name, email, tel FROM reservations")
             if err != nil {
                 http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
-                log.Println("Error executing query:", err)
+                log.Println("Query execution error:", err)
                 return
             }
             defer rows.Close()
@@ -168,16 +180,16 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             var reservations []Reservation
             for rows.Next() {
                 var reservation Reservation
-                var email sql.NullString
+                var email sql.NullString // Use sql.NullString to handle nullable fields
                 if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &email, &reservation.Tel); err != nil {
                     http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                     log.Println("Error reading rows:", err)
                     return
                 }
                 if email.Valid {
-                    reservation.Email = email.String
+                    reservation.Email = toStringPtr(email.String)
                 } else {
-                    reservation.Email = "" 
+                    reservation.Email = nil
                 }
                 reservations = append(reservations, reservation)
             }
@@ -218,10 +230,11 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             defer stmt.Close()
 
             var email sql.NullString
-            if reservation.Email == "" {
-                email = sql.NullString{Valid: false}
+            if reservation.Email != nil {
+                email.String = *reservation.Email
+                email.Valid = true
             } else {
-                email = sql.NullString{String: reservation.Email, Valid: true}
+                email.Valid = false
             }
 
             _, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, email, reservation.Tel)
