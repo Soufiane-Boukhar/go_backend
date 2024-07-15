@@ -187,6 +187,39 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error encoding JSON:", err)
             }
+        } else if r.Method == http.MethodPost {
+            var reservation Reservation
+            if err := json.NewDecoder(r.Body).Decode(&reservation); err != nil {
+                http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+                log.Println("Invalid request payload:", err)
+                return
+            }
+
+            db, err := getDBConnection()
+            if err != nil {
+                http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Database connection error:", err)
+                return
+            }
+            defer db.Close()
+
+            stmt, err := db.Prepare("INSERT INTO reservations (tour, date_reservation, name, email, tel) VALUES (?, ?, ?, ?, ?)")
+            if err != nil {
+                http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error preparing statement:", err)
+                return
+            }
+            defer stmt.Close()
+
+            _, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, reservation.Email, reservation.Tel)
+            if err != nil {
+                http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error executing statement:", err)
+                return
+            }
+
+            w.WriteHeader(http.StatusCreated)
+            fmt.Fprintln(w, "Reservation added successfully")
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
