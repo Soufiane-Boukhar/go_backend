@@ -28,6 +28,9 @@ type Contact struct {
     Tel       string `json:"tel"`
 }
 
+// AllowedOrigin specifies the allowed origin for CORS requests
+const AllowedOrigin = "https://web.postman.co/"
+
 // getDBConnection establishes a connection to the MySQL database
 func getDBConnection() (*sql.DB, error) {
     dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
@@ -44,6 +47,17 @@ func getDBConnection() (*sql.DB, error) {
 
 // Handler processes HTTP requests and interacts with the database
 func Handler(w http.ResponseWriter, r *http.Request) {
+    // Set CORS headers
+    w.Header().Set("Access-Control-Allow-Origin", AllowedOrigin)
+    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+    
+    if r.Method == http.MethodOptions {
+        // Handle preflight request
+        w.WriteHeader(http.StatusOK)
+        return
+    }
+
     switch r.URL.Path {
     case "/":
         fmt.Fprintln(w, "Welcome to the home page!")
