@@ -7,6 +7,8 @@ import (
     "log"
     "net/http"
     _ "github.com/go-sql-driver/mysql"
+    "regexp"
+    "strings"
 )
 
 // Database connection parameters
@@ -35,22 +37,48 @@ func getDBConnection() (*sql.DB, error) {
     if err != nil {
         return nil, fmt.Errorf("error opening database connection: %w", err)
     }
-    // Check if the connection is valid
     if err := db.Ping(); err != nil {
         return nil, fmt.Errorf("error connecting to the database: %w", err)
     }
     return db, nil
 }
 
+// validateEmail checks if the email address is valid
+func validateEmail(email string) bool {
+    const emailRegex = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+    re := regexp.MustCompile(emailRegex)
+    return re.MatchString(email)
+}
+
+// validateInput sanitizes and validates the contact input
+func validateInput(contact *Contact) error {
+    if !validateEmail(contact.Email) {
+        return fmt.Errorf("invalid email address")
+    }
+    // Example: Ensure message length does not exceed 500 characters
+    if len(contact.Message) > 500 {
+        return fmt.Errorf("message too long")
+    }
+    // Additional validations can be added here
+    return nil
+}
+
 // Handler processes HTTP requests and interacts with the database
 func Handler(w http.ResponseWriter, r *http.Request) {
+    // Set security headers
+    w.Header().Set("Content-Security-Policy", "default-src 'self'")
+    w.Header().Set("X-Content-Type-Options", "nosniff")
+    w.Header().Set("X-Frame-Options", "DENY")
+    w.Header().Set("X-XSS-Protection", "1; mode=block")
+
     switch r.URL.Path {
     case "/":
         fmt.Fprintln(w, "Welcome to the home page!")
     case "/about":
         fmt.Fprintln(w, "This is the about page.")
     case "/contacts":
-        if r.Method == http.MethodGet {
+        switch r.Method {
+        case http.MethodGet:
             db, err := getDBConnection()
             if err != nil {
                 http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
@@ -89,11 +117,16 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error encoding JSON:", err)
             }
-        } else if r.Method == http.MethodPost {
+        case http.MethodPost:
             var contact Contact
             if err := json.NewDecoder(r.Body).Decode(&contact); err != nil {
                 http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
                 log.Println("Invalid request payload:", err)
+                return
+            }
+
+            if err := validateInput(&contact); err != nil {
+                http.Error(w, "Invalid input: "+err.Error(), http.StatusBadRequest)
                 return
             }
 
@@ -122,7 +155,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
             w.WriteHeader(http.StatusCreated)
             fmt.Fprintln(w, "Contact added successfully")
-        } else {
+        default:
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
     default:
