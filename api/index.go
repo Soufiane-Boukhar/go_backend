@@ -28,12 +28,12 @@ type Contact struct {
 }
 
 type Reservation struct {
-    ID              int       `json:"id"`
-    Tour            string    `json:"tour"`
-    DateReservation time.Time `json:"date_reservation"`
-    Name            string    `json:"name"`
-    Email           string    `json:"email"`
-    Tel             string    `json:"tel"`
+    ID              int             `json:"id"`
+    Tour            string          `json:"tour"`
+    DateReservation sql.NullTime    `json:"date_reservation"`
+    Name            string          `json:"name"`
+    Email           string          `json:"email"`
+    Tel             string          `json:"tel"`
 }
 
 const AllowedOrigin = "https://www.capalliance.ma/"
@@ -166,15 +166,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             defer rows.Close()
 
             var reservations []Reservation
-            for rows.Next() {
-                var reservation Reservation
-                if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &reservation.Email, &reservation.Tel); err != nil {
-                    http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-                    log.Println("Error reading rows:", err)
-                    return
-                }
-                reservations = append(reservations, reservation)
-            }
+			for rows.Next() {
+				var reservation Reservation
+				if err := rows.Scan(&reservation.ID, &reservation.Tour, &reservation.DateReservation, &reservation.Name, &reservation.Email, &reservation.Tel); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+				reservations = append(reservations, reservation)
+			}
 
             if err := rows.Err(); err != nil {
                 http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
