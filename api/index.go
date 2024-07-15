@@ -49,44 +49,81 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         fmt.Fprintln(w, "Welcome to the home page!")
     case "/about":
         fmt.Fprintln(w, "This is the about page.")
-    case "/getContacts":
-        db, err := getDBConnection()
-        if err != nil {
-            http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
-            log.Println("Database connection error:", err)
-            return
-        }
-        defer db.Close()
-
-        rows, err := db.Query("SELECT id, email, message, subject, full_name, tel FROM contacts")
-        if err != nil {
-            http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
-            log.Println("Query execution error:", err)
-            return
-        }
-        defer rows.Close()
-
-        var contacts []Contact
-        for rows.Next() {
-            var contact Contact
-            if err := rows.Scan(&contact.ID, &contact.Email, &contact.Message, &contact.Subject, &contact.FullName, &contact.Tel); err != nil {
-                http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-                log.Println("Error reading rows:", err)
+    case "/contacts":
+        if r.Method == http.MethodGet {
+            db, err := getDBConnection()
+            if err != nil {
+                http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Database connection error:", err)
                 return
             }
-            contacts = append(contacts, contact)
-        }
+            defer db.Close()
 
-        if err := rows.Err(); err != nil {
-            http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
-            log.Println("Error iterating rows:", err)
-            return
-        }
+            rows, err := db.Query("SELECT id, email, message, subject, full_name, tel FROM contacts")
+            if err != nil {
+                http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Query execution error:", err)
+                return
+            }
+            defer rows.Close()
 
-        w.Header().Set("Content-Type", "application/json")
-        if err := json.NewEncoder(w).Encode(contacts); err != nil {
-            http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
-            log.Println("Error encoding JSON:", err)
+            var contacts []Contact
+            for rows.Next() {
+                var contact Contact
+                if err := rows.Scan(&contact.ID, &contact.Email, &contact.Message, &contact.Subject, &contact.FullName, &contact.Tel); err != nil {
+                    http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+                    log.Println("Error reading rows:", err)
+                    return
+                }
+                contacts = append(contacts, contact)
+            }
+
+            if err := rows.Err(); err != nil {
+                http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error iterating rows:", err)
+                return
+            }
+
+            w.Header().Set("Content-Type", "application/json")
+            if err := json.NewEncoder(w).Encode(contacts); err != nil {
+                http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error encoding JSON:", err)
+            }
+        } else if r.Method == http.MethodPost {
+            var contact Contact
+            if err := json.NewDecoder(r.Body).Decode(&contact); err != nil {
+                http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+                log.Println("Invalid request payload:", err)
+                return
+            }
+
+            db, err := getDBConnection()
+            if err != nil {
+                http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Database connection error:", err)
+                return
+            }
+            defer db.Close()
+
+            stmt, err := db.Prepare("INSERT INTO contacts (email, message, subject, full_name, tel) VALUES (?, ?, ?, ?, ?)")
+            if err != nil {
+                http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error preparing statement:", err)
+                return
+            }
+            defer stmt.Close()
+
+            _, err = stmt.Exec(contact.Email, contact.Message, contact.Subject, contact.FullName, contact.Tel)
+            if err != nil {
+                http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error executing statement:", err)
+                return
+            }
+
+            w.WriteHeader(http.StatusCreated)
+            fmt.Fprintln(w, "Contact added successfully")
+        } else {
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
     default:
         http.NotFound(w, r)
