@@ -9,7 +9,6 @@ import (
     _ "github.com/go-sql-driver/mysql"
 )
 
-// Database connection parameters
 const (
     dbUser     = "avnadmin"
     dbPassword = "AVNS_wWoRjEZRmFF5NgjGCcY"
@@ -42,10 +41,16 @@ func getDBConnection() (*sql.DB, error) {
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
+    origin := r.Header.Get("Origin")
+    if origin != AllowedOrigin && origin != "" {
+        http.Error(w, "Origin not allowed", http.StatusForbidden)
+        return
+    }
+
     w.Header().Set("Access-Control-Allow-Origin", AllowedOrigin)
     w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-    
+
     if r.Method == http.MethodOptions {
         w.WriteHeader(http.StatusOK)
         return
