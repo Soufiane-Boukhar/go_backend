@@ -9,7 +9,6 @@ import (
     _ "github.com/go-sql-driver/mysql"
 )
 
-// Database connection parameters
 const (
     dbUser     = "avnadmin"
     dbPassword = "AVNS_wWoRjEZRmFF5NgjGCcY"
@@ -18,14 +17,12 @@ const (
     dbName     = "defaultdb"
 )
 
-// Contact represents the structure of a contact in the database
 type Contact struct {
     ID    int    `json:"id"`
-    Message  string `json:"name"`
+    Name  string `json:"name"`
     Email string `json:"email"`
 }
 
-// getDBConnection establishes a connection to the MySQL database
 func getDBConnection() (*sql.DB, error) {
     dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
     db, err := sql.Open("mysql", dsn)
@@ -42,9 +39,9 @@ func getDBConnection() (*sql.DB, error) {
 func Handler(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
     case "/":
-        http.Error(w, "Welcome to the home page!", http.StatusOK)
+        fmt.Fprintln(w, "Welcome to the home page!")
     case "/about":
-        http.Error(w, "This is the about page.", http.StatusOK)
+        fmt.Fprintln(w, "This is the about page.")
     case "/getContacts":
         db, err := getDBConnection()
         if err != nil {
@@ -54,7 +51,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         }
         defer db.Close()
 
-        rows, err := db.Query("SELECT id, message, email FROM contacts")
+        rows, err := db.Query("SELECT id, name, email FROM contacts")
         if err != nil {
             http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
             log.Println("Query execution error:", err)
@@ -65,7 +62,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         var contacts []Contact
         for rows.Next() {
             var contact Contact
-            if err := rows.Scan(&contact.ID, &contact.Message, &contact.Email); err != nil {
+            if err := rows.Scan(&contact.ID, &contact.Name, &contact.Email); err != nil {
                 http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error reading rows:", err)
                 return
