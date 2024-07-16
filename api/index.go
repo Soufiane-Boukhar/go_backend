@@ -18,44 +18,6 @@ const (
     dbName     = "defaultdb"
 )
 
-type Contact struct {
-    ID        int    `json:"id"`
-    Email     string `json:"email"`
-    Message   string `json:"message"`
-    Subject   string `json:"subject"`
-    FullName  string `json:"full_name"`
-    Tel       string `json:"tel"`
-}
-
-type Reservation struct {
-    ID              int       `json:"id"`
-    Tour            string    `json:"tour"`
-    DateReservation time.Time `json:"date_reservation"`
-    Name            string    `json:"name"`
-    Email           string    `json:"email"`
-    Tel             string    `json:"tel"`
-    Transport       string    `json:"transport"` 
-}
-
-
-type Review struct {
-    ID        int    `json:"id"`
-    FirstName string `json:"first_name"`
-    LastName  string `json:"last_name"`
-    Rating    string `json:"rating"`
-    Message   string `json:"message"`
-    Image     string `json:"image"`
-}
-
-type Payment struct {
-    ID            int       `json:"id"`
-    Amount        float64   `json:"amount"`
-    PaymentDate   time.Time `json:"payment_date"`
-    ReservationID int       `json:"reservation_id"`
-    Status        string    `json:"status"`
-}
-
-
 const AllowedOrigin = "https://www.capalliance.ma/"
 
 func getDBConnection() (*sql.DB, error) {
@@ -268,8 +230,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             fmt.Fprintln(w, "Reservation added successfully")
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        }    
-    case "/reviews":
+        }
+    case "/review":
         if r.Method == http.MethodGet {
             db, err := getDBConnection()
             if err != nil {
@@ -278,7 +240,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 return
             }
             defer db.Close()
-
+    
             rows, err := db.Query("SELECT id, first_name, last_name, rating, message, image FROM reviews")
             if err != nil {
                 http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
@@ -286,7 +248,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 return
             }
             defer rows.Close()
-
+    
             var reviews []Review
             for rows.Next() {
                 var review Review
@@ -297,13 +259,13 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 }
                 reviews = append(reviews, review)
             }
-
+    
             if err := rows.Err(); err != nil {
                 http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error iterating rows:", err)
                 return
             }
-
+    
             w.Header().Set("Content-Type", "application/json")
             if err := json.NewEncoder(w).Encode(reviews); err != nil {
                 http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
@@ -316,7 +278,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 log.Println("Invalid request payload:", err)
                 return
             }
-
+    
             db, err := getDBConnection()
             if err != nil {
                 http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
@@ -324,7 +286,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 return
             }
             defer db.Close()
-
+    
             stmt, err := db.Prepare("INSERT INTO reviews (first_name, last_name, rating, message, image) VALUES (?, ?, ?, ?, ?)")
             if err != nil {
                 http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
@@ -332,14 +294,14 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 return
             }
             defer stmt.Close()
-
+    
             _, err = stmt.Exec(review.FirstName, review.LastName, review.Rating, review.Message, review.Image)
             if err != nil {
                 http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error executing statement:", err)
                 return
             }
-
+    
             w.WriteHeader(http.StatusCreated)
             fmt.Fprintln(w, "Review added successfully")
         } else {
@@ -442,8 +404,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             fmt.Fprintln(w, "Payment added successfully")
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        }    
+        }
     default:
-        http.NotFound(w, r)
+        http.Error(w, "Not found", http.StatusNotFound)
     }
 }
