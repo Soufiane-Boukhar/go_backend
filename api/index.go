@@ -34,7 +34,9 @@ type Reservation struct {
     Name            string    `json:"name"`
     Email           string    `json:"email"`
     Tel             string    `json:"tel"`
+    Transport       string    `json:"transport"` 
 }
+
 
 type Review struct {
     ID        int    `json:"id"`
@@ -165,15 +167,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 return
             }
             defer db.Close()
-
-            rows, err := db.Query("SELECT id, tour, date_reservation, name, email, tel FROM reservations")
+    
+            rows, err := db.Query("SELECT id, tour, date_reservation, name, email, tel, transport FROM reservations")
             if err != nil {
                 http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Query execution error:", err)
                 return
             }
             defer rows.Close()
-
+    
             var reservations []Reservation
             for rows.Next() {
                 var (
@@ -183,14 +185,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                     name            string
                     email           string
                     tel             string
+                    transport       string 
                 )
     
-                if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel); err != nil {
+                if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel, &transport); err != nil {
                     http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                     log.Println("Error reading rows:", err)
                     return
                 }
-
+    
                 dateStr := string(dateReservation)
                 dateTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
                 if err != nil {
@@ -198,7 +201,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                     log.Println("Error parsing date:", err)
                     return
                 }
-
+    
                 reservations = append(reservations, Reservation{
                     ID:              id,
                     Tour:            tour,
@@ -206,15 +209,16 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                     Name:            name,
                     Email:           email,
                     Tel:             tel,
+                    Transport:       transport,
                 })
             }
-
+    
             if err := rows.Err(); err != nil {
                 http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error iterating rows:", err)
                 return
             }
-
+    
             w.Header().Set("Content-Type", "application/json")
             if err := json.NewEncoder(w).Encode(reservations); err != nil {
                 http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
@@ -227,7 +231,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 log.Println("Invalid request payload:", err)
                 return
             }
-
+    
             db, err := getDBConnection()
             if err != nil {
                 http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
@@ -235,27 +239,27 @@ func Handler(w http.ResponseWriter, r *http.Request) {
                 return
             }
             defer db.Close()
-
-            stmt, err := db.Prepare("INSERT INTO reservations (tour, date_reservation, name, email, tel) VALUES (?, ?, ?, ?, ?)")
+    
+            stmt, err := db.Prepare("INSERT INTO reservations (tour, date_reservation, name, email, tel, transport) VALUES (?, ?, ?, ?, ?, ?)")
             if err != nil {
                 http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error preparing statement:", err)
                 return
             }
             defer stmt.Close()
-
-            _, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, reservation.Email, reservation.Tel)
+    
+            _, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, reservation.Email, reservation.Tel, reservation.Transport)
             if err != nil {
                 http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error executing statement:", err)
                 return
             }
-
+    
             w.WriteHeader(http.StatusCreated)
             fmt.Fprintln(w, "Reservation added successfully")
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        }
+        }    
     case "/reviews":
         if r.Method == http.MethodGet {
             db, err := getDBConnection()
