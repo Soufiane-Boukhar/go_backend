@@ -47,6 +47,15 @@ type Review struct {
     Image     string `json:"image"`
 }
 
+type Payment struct {
+    ID            int       `json:"id"`
+    Amount        float64   `json:"amount"`
+    PaymentDate   time.Time `json:"payment_date"`
+    ReservationID int       `json:"reservation_id"`
+    Status        string    `json:"status"`
+}
+
+
 const AllowedOrigin = "https://www.capalliance.ma/"
 
 func getDBConnection() (*sql.DB, error) {
@@ -336,6 +345,104 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         } else {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
+    case "/payment":
+        if r.Method == http.MethodGet {
+            db, err := getDBConnection()
+            if err != nil {
+                http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Database connection error:", err)
+                return
+            }
+            defer db.Close()
+    
+            rows, err := db.Query("SELECT id, amount, payment_date, reservation_id, status FROM payments")
+            if err != nil {
+                http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Query execution error:", err)
+                return
+            }
+            defer rows.Close()
+    
+            var payments []Payment
+            for rows.Next() {
+                var (
+                    id            int
+                    amount        float64
+                    paymentDate   []byte
+                    reservationID int
+                    status        string
+                )
+    
+                if err := rows.Scan(&id, &amount, &paymentDate, &reservationID, &status); err != nil {
+                    http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+                    log.Println("Error reading rows:", err)
+                    return
+                }
+    
+                dateStr := string(paymentDate)
+                paymentTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
+                if err != nil {
+                    http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
+                    log.Println("Error parsing date:", err)
+                    return
+                }
+    
+                payments = append(payments, Payment{
+                    ID:            id,
+                    Amount:        amount,
+                    PaymentDate:   paymentTime,
+                    ReservationID: reservationID,
+                    Status:        status,
+                })
+            }
+    
+            if err := rows.Err(); err != nil {
+                http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error iterating rows:", err)
+                return
+            }
+    
+            w.Header().Set("Content-Type", "application/json")
+            if err := json.NewEncoder(w).Encode(payments); err != nil {
+                http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error encoding JSON:", err)
+            }
+        } else if r.Method == http.MethodPost {
+            var payment Payment
+            if err := json.NewDecoder(r.Body).Decode(&payment); err != nil {
+                http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+                log.Println("Invalid request payload:", err)
+                return
+            }
+    
+            db, err := getDBConnection()
+            if err != nil {
+                http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Database connection error:", err)
+                return
+            }
+            defer db.Close()
+    
+            stmt, err := db.Prepare("INSERT INTO payments (amount, payment_date, reservation_id, status) VALUES (?, ?, ?, ?)")
+            if err != nil {
+                http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error preparing statement:", err)
+                return
+            }
+            defer stmt.Close()
+    
+            _, err = stmt.Exec(payment.Amount, payment.PaymentDate, payment.ReservationID, payment.Status)
+            if err != nil {
+                http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+                log.Println("Error executing statement:", err)
+                return
+            }
+    
+            w.WriteHeader(http.StatusCreated)
+            fmt.Fprintln(w, "Payment added successfully")
+        } else {
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        }    
     default:
         http.NotFound(w, r)
     }
