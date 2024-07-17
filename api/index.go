@@ -27,6 +27,7 @@ type Contact struct {
     Tel       string `json:"tel"`
 }
 
+
 type Reservation struct {
     ID              int       `json:"id"`
     Tour            string    `json:"tour"`
@@ -46,6 +47,7 @@ type Review struct {
     Message   string `json:"message"`
     Image     string `json:"image"`
 }
+
 
 type Payment struct {
     ID            int       `json:"id"`
