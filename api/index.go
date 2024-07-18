@@ -20,11 +20,16 @@ const (
 
 type Contact struct {
     ID        int    `json:"id"`
+    FirstName string `json:"first_name"`
+    LastName  string `json:"last_name"`
     Email     string `json:"email"`
-    Message   string `json:"message"`
-    Subject   string `json:"subject"`
-    FullName  string `json:"full_name"`
-    Tel       string `json:"tel"`
+    StartDate string `json:"start_date"`
+    EndDate   string `json:"end_date"`
+    Departure string `json:"departure"`
+    Destination string `json:"destination"`
+    Number    string `json:"number"`
+    Tour      string `json:"tour"`
+    Comments  string `json:"comments"`
 }
 
 
@@ -103,7 +108,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             }
             defer db.Close()
 
-            rows, err := db.Query("SELECT id, email, message, subject, full_name, tel FROM contactsTours")
+            rows, err := db.Query("SELECT id, first_name, last_name, email, start_date, end_date, departure, destination, number, tour, comments FROM contactsTours")
             if err != nil {
                 http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Query execution error:", err)
@@ -114,7 +119,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             var contacts []Contact
             for rows.Next() {
                 var contact Contact
-                if err := rows.Scan(&contact.ID, &contact.Email, &contact.Message, &contact.Subject, &contact.FullName, &contact.Tel); err != nil {
+                if err := rows.Scan(&contact.ID, &contact.FirstName, &contact.LastName, &contact.Email, &contact.StartDate, &contact.EndDate, &contact.Departure, &contact.Destination, &contact.Number, &contact.Tour, &contact.Comments); err != nil {
                     http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
                     log.Println("Error reading rows:", err)
                     return
@@ -149,7 +154,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             }
             defer db.Close()
 
-            stmt, err := db.Prepare("INSERT INTO contactsTours (email, message, subject, full_name, tel) VALUES (?, ?, ?, ?, ?)")
+            stmt, err := db.Prepare("INSERT INTO contactsTours (first_name, last_name, email, start_date, end_date, departure, destination, number, tour, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             if err != nil {
                 http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error preparing statement:", err)
@@ -157,7 +162,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
             }
             defer stmt.Close()
 
-            _, err = stmt.Exec(contact.Email, contact.Message, contact.Subject, contact.FullName, contact.Tel)
+            _, err = stmt.Exec(contact.FirstName, contact.LastName, contact.Email, contact.StartDate, contact.EndDate, contact.Departure, contact.Destination, contact.Number, contact.Tour, contact.Comments)
             if err != nil {
                 http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
                 log.Println("Error executing statement:", err)
