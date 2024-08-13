@@ -16,6 +16,7 @@ const (
 	dbHost     = "mysql-1fb82b3b-boukhar-d756.e.aivencloud.com"
 	dbPort     = 20744
 	dbName     = "defaultdb"
+	AllowedOrigin = "*"
 )
 
 type Contact struct {
@@ -62,7 +63,6 @@ type Payment struct {
 	Status        string    `json:"status"`
 }
 
-const AllowedOrigin = "*"
 
 func getDBConnection() (*sql.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
