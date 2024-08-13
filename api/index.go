@@ -16,7 +16,7 @@ const (
 	dbHost     = "mysql-1fb82b3b-boukhar-d756.e.aivencloud.com"
 	dbPort     = 20744
 	dbName     = "defaultdb"
-	AllowedOrigin = "*"
+	AllowedOrigin = "http://127.0.0.1:5500/"
 )
 
 type Contact struct {
