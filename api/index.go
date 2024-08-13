@@ -4,11 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"net/http"
 	"time"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -20,16 +19,16 @@ const (
 )
 
 type Contact struct {
-	ID          int       `json:"id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
+	ID          int    `json:"id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
 	StartDate   time.Time `json:"startDate"`
 	EndDate     time.Time `json:"endDate"`
-	Departure   string    `json:"departure"`
-	Destination string    `json:"destination"`
-	Number      string    `json:"number"`
-	Tour        string    `json:"tour"`
-	Comments    string    `json:"comments"`
+	Departure   string `json:"departure"`
+	Destination string `json:"destination"`
+	Number      string `json:"number"`
+	Tour        string `json:"tour"`
+	Comments    string `json:"comments"`
 }
 
 type Reservation struct {
@@ -77,314 +76,380 @@ func getDBConnection() (*sql.DB, error) {
 	return db, nil
 }
 
-func handleContacts(w http.ResponseWriter, r *http.Request) {
-	db, err := getDBConnection()
-	if err != nil {
-		http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
-		log.Println("Database connection error:", err)
+func Handler(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if origin != AllowedOrigin && origin != "" {
+		http.Error(w, "Origin not allowed", http.StatusForbidden)
 		return
 	}
-	defer db.Close()
 
-	switch r.Method {
-	case http.MethodGet:
-		rows, err := db.Query("SELECT id, first_name, last_name, start_date, end_date, departure, destination, number, tour, comments FROM contactsTours")
-		if err != nil {
-			http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Query execution error:", err)
-			return
-		}
-		defer rows.Close()
+	w.Header().Set("Access-Control-Allow-Origin", AllowedOrigin)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-		var contacts []Contact
-		for rows.Next() {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	switch r.URL.Path {
+	case "/":
+		fmt.Fprintln(w, "Welcome to the home page!")
+	case "/about":
+		fmt.Fprintln(w, "This is the about page.")
+	case "/contacts":
+		if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			rows, err := db.Query("SELECT id, first_name, last_name, start_date, end_date, departure, destination, number, tour, comments FROM contactsTours")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
+
+			var contacts []Contact
+			for rows.Next() {
+				var contact Contact
+				if err := rows.Scan(&contact.ID, &contact.FirstName, &contact.LastName, &contact.StartDate, &contact.EndDate, &contact.Departure, &contact.Destination, &contact.Number, &contact.Tour, &contact.Comments); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+				contacts = append(contacts, contact)
+			}
+
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(contacts); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
+		} else if r.Method == http.MethodPost {
 			var contact Contact
-			if err := rows.Scan(&contact.ID, &contact.FirstName, &contact.LastName, &contact.StartDate, &contact.EndDate, &contact.Departure, &contact.Destination, &contact.Number, &contact.Tour, &contact.Comments); err != nil {
-				http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-				log.Println("Error reading rows:", err)
-				return
-			}
-			contacts = append(contacts, contact)
-		}
-		if err := rows.Err(); err != nil {
-			http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error iterating rows:", err)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(contacts); err != nil {
-			http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error encoding JSON:", err)
-		}
-
-	case http.MethodPost:
-		var contact Contact
-		if err := json.NewDecoder(r.Body).Decode(&contact); err != nil {
-			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
-			log.Println("Invalid request payload:", err)
-			return
-		}
-
-		stmt, err := db.Prepare("INSERT INTO contactsTours (first_name, last_name, start_date, end_date, departure, destination, number, tour, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error preparing statement:", err)
-			return
-		}
-		defer stmt.Close()
-
-		if _, err = stmt.Exec(contact.FirstName, contact.LastName, contact.StartDate, contact.EndDate, contact.Departure, contact.Destination, contact.Number, contact.Tour, contact.Comments); err != nil {
-			http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error executing statement:", err)
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Contact added successfully")
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func handleReservation(w http.ResponseWriter, r *http.Request) {
-	db, err := getDBConnection()
-	if err != nil {
-		http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
-		log.Println("Database connection error:", err)
-		return
-	}
-	defer db.Close()
-
-	switch r.Method {
-	case http.MethodGet:
-		rows, err := db.Query("SELECT id, tour, date_reservation, name, email, tel, transport FROM reservations")
-		if err != nil {
-			http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Query execution error:", err)
-			return
-		}
-		defer rows.Close()
-
-		var reservations []Reservation
-		for rows.Next() {
-			var (
-				id              int
-				tour            string
-				dateReservation time.Time
-				name            string
-				email           string
-				tel             string
-				transport       string
-			)
-
-			if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel, &transport); err != nil {
-				http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-				log.Println("Error reading rows:", err)
+			if err := json.NewDecoder(r.Body).Decode(&contact); err != nil {
+				http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+				log.Println("Invalid request payload:", err)
 				return
 			}
 
-			reservations = append(reservations, Reservation{
-				ID:              id,
-				Tour:            tour,
-				DateReservation: dateReservation,
-				Name:            name,
-				Email:           email,
-				Tel:             tel,
-				Transport:       transport,
-			})
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			stmt, err := db.Prepare("INSERT INTO contactsTours (first_name, last_name, start_date, end_date, departure, destination, number, tour, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error preparing statement:", err)
+				return
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(contact.FirstName, contact.LastName, contact.StartDate, contact.EndDate, contact.Departure, contact.Destination, contact.Number, contact.Tour, contact.Comments)
+			if err != nil {
+				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error executing statement:", err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "Contact added successfully")
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-		if err := rows.Err(); err != nil {
-			http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error iterating rows:", err)
-			return
+	case "/reservation":
+		if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			rows, err := db.Query("SELECT id, tour, date_reservation, name, email, tel, transport FROM reservations")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
+
+			var reservations []Reservation
+			for rows.Next() {
+				var (
+					id              int
+					tour            string
+					dateReservation []byte
+					name            string
+					email           string
+					tel             string
+					transport       string
+				)
+
+				if err := rows.Scan(&id, &tour, &dateReservation, &name, &email, &tel, &transport); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+
+				dateStr := string(dateReservation)
+				dateTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
+				if err != nil {
+					http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error parsing date:", err)
+					return
+				}
+
+				reservations = append(reservations, Reservation{
+					ID:              id,
+					Tour:            tour,
+					DateReservation: dateTime,
+					Name:            name,
+					Email:           email,
+					Tel:             tel,
+					Transport:       transport,
+				})
+			}
+
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(reservations); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
+		} else if r.Method == http.MethodPost {
+			var reservation Reservation
+			if err := json.NewDecoder(r.Body).Decode(&reservation); err != nil {
+				http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+				log.Println("Invalid request payload:", err)
+				return
+			}
+
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			stmt, err := db.Prepare("INSERT INTO reservations (tour, date_reservation, name, email, tel, transport) VALUES (?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error preparing statement:", err)
+				return
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, reservation.Email, reservation.Tel, reservation.Transport)
+			if err != nil {
+				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error executing statement:", err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "Reservation added successfully")
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	case "/reviews":
+		if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(reservations); err != nil {
-			http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error encoding JSON:", err)
-		}
+			rows, err := db.Query("SELECT id, first_name, last_name, quality, location, services, team, price, message, image FROM reviews")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
 
-	case http.MethodPost:
-		var reservation Reservation
-		if err := json.NewDecoder(r.Body).Decode(&reservation); err != nil {
-			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
-			log.Println("Invalid request payload:", err)
-			return
-		}
+			var reviews []Review
+			for rows.Next() {
+				var review Review
+				if err := rows.Scan(&review.ID, &review.FirstName, &review.LastName, &review.Quality, &review.Location, &review.Services, &review.Team, &review.Price, &review.Message, &review.Image); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+				reviews = append(reviews, review)
+			}
 
-		stmt, err := db.Prepare("INSERT INTO reservations (tour, date_reservation, name, email, tel, transport) VALUES (?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error preparing statement:", err)
-			return
-		}
-		defer stmt.Close()
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
 
-		if _, err = stmt.Exec(reservation.Tour, reservation.DateReservation, reservation.Name, reservation.Email, reservation.Tel, reservation.Transport); err != nil {
-			http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error executing statement:", err)
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Reservation added successfully")
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func handleReviews(w http.ResponseWriter, r *http.Request) {
-	db, err := getDBConnection()
-	if err != nil {
-		http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
-		log.Println("Database connection error:", err)
-		return
-	}
-	defer db.Close()
-
-	switch r.Method {
-	case http.MethodGet:
-		rows, err := db.Query("SELECT id, first_name, last_name, quality, location, services, team, price, message, image FROM reviews")
-		if err != nil {
-			http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Query execution error:", err)
-			return
-		}
-		defer rows.Close()
-
-		var reviews []Review
-		for rows.Next() {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(reviews); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
+		} else if r.Method == http.MethodPost {
 			var review Review
-			if err := rows.Scan(&review.ID, &review.FirstName, &review.LastName, &review.Quality, &review.Location, &review.Services, &review.Team, &review.Price, &review.Message, &review.Image); err != nil {
-				http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-				log.Println("Error reading rows:", err)
+			if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+				http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+				log.Println("Invalid request payload:", err)
 				return
 			}
-			reviews = append(reviews, review)
+
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			stmt, err := db.Prepare("INSERT INTO reviews (first_name, last_name, quality, location, services, team, price, message, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error preparing statement:", err)
+				return
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(review.FirstName, review.LastName, review.Quality, review.Location, review.Services, review.Team, review.Price, review.Message, review.Image)
+			if err != nil {
+				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error executing statement:", err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "Review added successfully")
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-		if err := rows.Err(); err != nil {
-			http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error iterating rows:", err)
-			return
-		}
+	case "/payment":
+		if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(reviews); err != nil {
-			http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error encoding JSON:", err)
-		}
+			rows, err := db.Query("SELECT id, amount, payment_date, reservation_id, status FROM payments")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
 
-	case http.MethodPost:
-		var review Review
-		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
-			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
-			log.Println("Invalid request payload:", err)
-			return
-		}
+			var payments []Payment
+			for rows.Next() {
+				var (
+					id            int
+					amount        float64
+					paymentDate   []byte
+					reservationID int
+					status        string
+				)
 
-		stmt, err := db.Prepare("INSERT INTO reviews (first_name, last_name, quality, location, services, team, price, message, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error preparing statement:", err)
-			return
-		}
-		defer stmt.Close()
+				if err := rows.Scan(&id, &amount, &paymentDate, &reservationID, &status); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
 
-		if _, err = stmt.Exec(review.FirstName, review.LastName, review.Quality, review.Location, review.Services, review.Team, review.Price, review.Message, review.Image); err != nil {
-			http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error executing statement:", err)
-			return
-		}
+				dateStr := string(paymentDate)
+				paymentTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
+				if err != nil {
+					http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error parsing date:", err)
+					return
+				}
 
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Review added successfully")
+				payments = append(payments, Payment{
+					ID:            id,
+					Amount:        amount,
+					PaymentDate:   paymentTime,
+					ReservationID: reservationID,
+					Status:        status,
+				})
+			}
 
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
 
-func handlePayments(w http.ResponseWriter, r *http.Request) {
-	db, err := getDBConnection()
-	if err != nil {
-		http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
-		log.Println("Database connection error:", err)
-		return
-	}
-	defer db.Close()
-
-	switch r.Method {
-	case http.MethodGet:
-		rows, err := db.Query("SELECT id, amount, payment_date, reservation_id, status FROM payments")
-		if err != nil {
-			http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Query execution error:", err)
-			return
-		}
-		defer rows.Close()
-
-		var payments []Payment
-		for rows.Next() {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(payments); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
+		} else if r.Method == http.MethodPost {
 			var payment Payment
-			if err := rows.Scan(&payment.ID, &payment.Amount, &payment.PaymentDate, &payment.ReservationID, &payment.Status); err != nil {
-				http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
-				log.Println("Error reading rows:", err)
+			if err := json.NewDecoder(r.Body).Decode(&payment); err != nil {
+				http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+				log.Println("Invalid request payload:", err)
 				return
 			}
-			payments = append(payments, payment)
-		}
-		if err := rows.Err(); err != nil {
-			http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error iterating rows:", err)
-			return
-		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(payments); err != nil {
-			http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error encoding JSON:", err)
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			stmt, err := db.Prepare("INSERT INTO payments (amount, payment_date, reservation_id, status) VALUES (?, ?, ?, ?)")
+			if err != nil {
+				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error preparing statement:", err)
+				return
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(payment.Amount, payment.PaymentDate, payment.ReservationID, payment.Status)
+			if err != nil {
+				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error executing statement:", err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "Payment added successfully")
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-
-	case http.MethodPost:
-		var payment Payment
-		if err := json.NewDecoder(r.Body).Decode(&payment); err != nil {
-			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
-			log.Println("Invalid request payload:", err)
-			return
-		}
-
-		stmt, err := db.Prepare("INSERT INTO payments (amount, payment_date, reservation_id, status) VALUES (?, ?, ?, ?)")
-		if err != nil {
-			http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error preparing statement:", err)
-			return
-		}
-		defer stmt.Close()
-
-		if _, err = stmt.Exec(payment.Amount, payment.PaymentDate, payment.ReservationID, payment.Status); err != nil {
-			http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
-			log.Println("Error executing statement:", err)
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Payment added successfully")
-
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.NotFound(w, r)
 	}
-}
-
-func main() {
-	http.HandleFunc("/contacts", handleContacts)
-	http.HandleFunc("/reservations", handleReservation)
-	http.HandleFunc("/reviews", handleReviews)
-	http.HandleFunc("/payments", handlePayments)
-
-	fmt.Println("Server started at :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
 }
