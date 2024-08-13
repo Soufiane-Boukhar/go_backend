@@ -153,7 +153,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer db.Close()
 
-			stmt, err := db.Prepare("INSERT INTO contactsTours (first_name, last_name, start_date, end_date, departure, destination, number, tour, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			stmt, err := db.Prepare("INSERT INTO contactsTours (first_name, last_name, start_date, end_date, departure, destination, number, tour, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error preparing statement:", err)
