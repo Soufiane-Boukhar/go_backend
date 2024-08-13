@@ -62,7 +62,7 @@ type Payment struct {
 	Status        string    `json:"status"`
 }
 
-const AllowedOrigin = "http://localhost:5500"
+const AllowedOrigin = "*"
 
 func getDBConnection() (*sql.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
