@@ -11,25 +11,25 @@ import (
 )
 
 const (
-	dbUser     = "avnadmin"
-	dbPassword = "AVNS_wWoRjEZRmFF5NgjGCcY"
-	dbHost     = "mysql-1fb82b3b-boukhar-d756.e.aivencloud.com"
-	dbPort     = 20744
-	dbName     = "defaultdb"
+	dbUser        = "avnadmin"
+	dbPassword    = "AVNS_wWoRjEZRmFF5NgjGCcY"
+	dbHost        = "mysql-1fb82b3b-boukhar-d756.e.aivencloud.com"
+	dbPort        = 20744
+	dbName        = "defaultdb"
 	AllowedOrigin = "http://127.0.0.1:5500"
 )
 
 type Contact struct {
-	ID          int    `json:"id"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
+	ID          int       `json:"id"`
+	FirstName   string    `json:"first_name"`
+	LastName    string    `json:"last_name"`
 	StartDate   time.Time `json:"startDate"`
 	EndDate     time.Time `json:"endDate"`
-	Departure   string `json:"departure"`
-	Destination string `json:"destination"`
-	Number      string `json:"number"`
-	Tour        string `json:"tour"`
-	Comments    string `json:"comments"`
+	Departure   string    `json:"departure"`
+	Destination string    `json:"destination"`
+	Number      string    `json:"number"`
+	Tour        string    `json:"tour"`
+	Comments    string    `json:"comments"`
 }
 
 type Reservation struct {
@@ -61,6 +61,11 @@ type Payment struct {
 	PaymentDate   time.Time `json:"payment_date"`
 	ReservationID int       `json:"reservation_id"`
 	Status        string    `json:"status"`
+}
+
+type Newsletter struct {
+	ID    int    `json:"id"`
+	Email string `json:"email"`
 }
 
 func getDBConnection() (*sql.DB, error) {
@@ -272,6 +277,86 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintln(w, "Reservation added successfully")
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	case "/newsletter":
+		if r.Method == http.MethodPost {
+			email := r.FormValue("email")
+			if email == "" {
+				http.Error(w, "Email is required", http.StatusBadRequest)
+				return
+			}
+
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			stmt, err := db.Prepare("INSERT INTO newsletter (email) VALUES (?)")
+			if err != nil {
+				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error preparing statement:", err)
+				return
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(email)
+			if err != nil {
+				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error executing statement:", err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "Newsletter subscription successful")
+
+		} else if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			rows, err := db.Query("SELECT id, email FROM newsletter")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
+
+			var emails []map[string]interface{}
+			for rows.Next() {
+				var id int
+				var email string
+				if err := rows.Scan(&id, &email); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+				emails = append(emails, map[string]interface{}{
+					"id":    id,
+					"email": email,
+				})
+			}
+
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(emails); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
