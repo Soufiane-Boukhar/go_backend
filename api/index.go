@@ -360,6 +360,82 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	case "/review":
+		if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			rows, err := db.Query("SELECT id, first_name, last_name, quality, location, services, team, price, message, image FROM reviews")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
+
+			var reviews []Review
+			for rows.Next() {
+				var review Review
+				if err := rows.Scan(&review.ID, &review.FirstName, &review.LastName, &review.Quality, &review.Location, &review.Services, &review.Team, &review.Price, &review.Message, &review.Image); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+				reviews = append(reviews, review)
+			}
+
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(reviews); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
+		} else if r.Method == http.MethodPost {
+			var review Review
+			if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+				http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+				log.Println("Invalid request payload:", err)
+				return
+			}
+
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+
+			stmt, err := db.Prepare("INSERT INTO reviews (first_name, last_name, quality, location, services, team, price, message, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error preparing statement:", err)
+				return
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(review.FirstName, review.LastName, review.Quality, review.Location, review.Services, review.Team, review.Price, review.Message, review.Image)
+			if err != nil {
+				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error executing statement:", err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "Review added successfully")
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	default:
 		http.Error(w, "Endpoint not found", http.StatusNotFound)
 	}
