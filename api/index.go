@@ -54,6 +54,7 @@ type Review struct {
 	Price     int    `json:"price"`
 	Message   string `json:"message"`
 	Image     string `json:"image"`
+	Type      string `json:"image"`
 }
 
 type Payment struct {
@@ -371,7 +372,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer db.Close()
 	
-			rows, err := db.Query("SELECT id, first_name, last_name, email, quality, location, services, team, price, message, image FROM reviews")
+			rows, err := db.Query("SELECT id, first_name, last_name, email, quality, location, services, team, price, message, image, type FROM reviews")
 			if err != nil {
 				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Query execution error:", err)
@@ -417,7 +418,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer db.Close()
 	
-			stmt, err := db.Prepare("INSERT INTO reviews (first_name, last_name, email, quality, location, services, team, price, message, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			stmt, err := db.Prepare("INSERT INTO reviews (first_name, last_name, email, quality, location, services, team, price, message, image, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error preparing statement:", err)
@@ -425,7 +426,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer stmt.Close()
 	
-			_, err = stmt.Exec(review.FirstName, review.LastName, review.Email, review.Quality, review.Location, review.Services, review.Team, review.Price, review.Message, review.Image)
+			_, err = stmt.Exec(review.FirstName, review.LastName, review.Email, review.Quality, review.Location, review.Services, review.Team, review.Price, review.Message, review.Image, review.Type)
 			if err != nil {
 				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error executing statement:", err)
