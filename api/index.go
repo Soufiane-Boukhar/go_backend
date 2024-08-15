@@ -54,7 +54,7 @@ type Review struct {
 	Price     int    `json:"price"`
 	Message   string `json:"message"`
 	Image     string `json:"image"`
-	Type      string `json:"image"`
+	Type      string `json:"type"`
 }
 
 type Payment struct {
