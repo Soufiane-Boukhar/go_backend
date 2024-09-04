@@ -310,7 +310,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer db.Close()
 	
-			rows, err := db.Query("SELECT DISTINCT date_reservation FROM reservations")
+			rows, err := db.Query("SELECT date_reservation FROM reservations ORDER BY date_reservation")
 			if err != nil {
 				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Query execution error:", err)
@@ -318,7 +318,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer rows.Close()
 	
-			var dates []string
+			datesMap := make(map[string][]string)
 			for rows.Next() {
 				var dateReservation []byte
 				if err := rows.Scan(&dateReservation); err != nil {
@@ -335,13 +335,21 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 	
-				dates = append(dates, dateTime.Format("2006-01-02"))
+				date := dateTime.Format("2006-01-02")
+				time := dateTime.Format("15:04:05")
+	
+				datesMap[date] = append(datesMap[date], time)
 			}
 	
 			if err := rows.Err(); err != nil {
 				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error iterating rows:", err)
 				return
+			}
+	
+			dates := make(map[string]interface{})
+			for date, times := range datesMap {
+				dates[date] = times
 			}
 	
 			w.Header().Set("Content-Type", "application/json")
@@ -351,7 +359,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+		}	
 	case "/newsletter":
 		if r.Method == http.MethodPost {
 			email := r.FormValue("email")
