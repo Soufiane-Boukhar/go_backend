@@ -310,7 +310,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer db.Close()
 	
-			rows, err := db.Query("SELECT date_reservation FROM reservations ORDER BY date_reservation")
+			rows, err := db.Query("SELECT DISTINCT DATE(date_reservation) FROM reservations")
 			if err != nil {
 				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Query execution error:", err)
@@ -318,38 +318,23 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer rows.Close()
 	
-			datesMap := make(map[string][]string)
+			var dates []string
 			for rows.Next() {
-				var dateReservation []byte
-				if err := rows.Scan(&dateReservation); err != nil {
+				var date string
+				if err := rows.Scan(&date); err != nil {
 					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
 					log.Println("Error reading rows:", err)
 					return
 				}
 	
-				dateStr := string(dateReservation)
-				dateTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
-				if err != nil {
-					http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
-					log.Println("Error parsing date:", err)
-					return
-				}
-	
-				date := dateTime.Format("2006-01-02")
-				time := dateTime.Format("15:04:05")
-	
-				datesMap[date] = append(datesMap[date], time)
+				// Always add "08:00" for each distinct date
+				dates = append(dates, date+" 08:00")
 			}
 	
 			if err := rows.Err(); err != nil {
 				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error iterating rows:", err)
 				return
-			}
-	
-			dates := make(map[string]interface{})
-			for date, times := range datesMap {
-				dates[date] = times
 			}
 	
 			w.Header().Set("Content-Type", "application/json")
