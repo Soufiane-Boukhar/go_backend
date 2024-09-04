@@ -282,6 +282,58 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	case "/reservation/dates":
+		if r.Method == http.MethodGet {
+			db, err := getDBConnection()
+			if err != nil {
+				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Database connection error:", err)
+				return
+			}
+			defer db.Close()
+	
+			rows, err := db.Query("SELECT DISTINCT date_reservation FROM reservations")
+			if err != nil {
+				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Query execution error:", err)
+				return
+			}
+			defer rows.Close()
+	
+			var dates []string
+			for rows.Next() {
+				var dateReservation []byte
+				if err := rows.Scan(&dateReservation); err != nil {
+					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error reading rows:", err)
+					return
+				}
+	
+				dateStr := string(dateReservation)
+				dateTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
+				if err != nil {
+					http.Error(w, "Error parsing date: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error parsing date:", err)
+					return
+				}
+	
+				dates = append(dates, dateTime.Format("2006-01-02"))
+			}
+	
+			if err := rows.Err(); err != nil {
+				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error iterating rows:", err)
+				return
+			}
+	
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(dates); err != nil {
+				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
+				log.Println("Error encoding JSON:", err)
+			}
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	case "/newsletter":
 		if r.Method == http.MethodPost {
 			email := r.FormValue("email")
