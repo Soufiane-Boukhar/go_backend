@@ -318,7 +318,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer rows.Close()
 	
-			var dates []string
+			var reservations []map[string]string
 			for rows.Next() {
 				var date string
 				if err := rows.Scan(&date); err != nil {
@@ -327,8 +327,13 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 	
-				// Always add "08:00" for each distinct date
-				dates = append(dates, date+" 08:00")
+				// Create a map for each entry with separate date and time
+				reservation := map[string]string{
+					"date": date,
+					"time": "08:00",
+				}
+	
+				reservations = append(reservations, reservation)
 			}
 	
 			if err := rows.Err(); err != nil {
@@ -338,7 +343,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 	
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(dates); err != nil {
+			if err := json.NewEncoder(w).Encode(reservations); err != nil {
 				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error encoding JSON:", err)
 			}
