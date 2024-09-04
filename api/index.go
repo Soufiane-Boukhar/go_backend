@@ -133,14 +133,14 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 	
-				contact.StartDate, err = time.Parse("2006-01-02 15:04:05", string(startDate))
+				contact.StartDate, err = time.Parse("2006-01-02", string(startDate))
 				if err != nil {
 					http.Error(w, "Error parsing start_date: "+err.Error(), http.StatusInternalServerError)
 					log.Println("Error parsing start_date:", err)
 					return
 				}
 	
-				contact.EndDate, err = time.Parse("2006-01-02 15:04:05", string(endDate))
+				contact.EndDate, err = time.Parse("2006-01-02", string(endDate))
 				if err != nil {
 					http.Error(w, "Error parsing end_date: "+err.Error(), http.StatusInternalServerError)
 					log.Println("Error parsing end_date:", err)
@@ -196,7 +196,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, "Contact added successfully")
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}	
+		}
+	
 	case "/reservation":
 		if r.Method == http.MethodGet {
 			db, err := getDBConnection()
