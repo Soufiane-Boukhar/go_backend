@@ -113,7 +113,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer db.Close()
-
+	
 			rows, err := db.Query("SELECT id, first_name, last_name, start_date, end_date, departure, destination, number, tour, comments FROM contactsTours")
 			if err != nil {
 				http.Error(w, "Error executing query: "+err.Error(), http.StatusInternalServerError)
@@ -121,24 +121,41 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer rows.Close()
-
+	
 			var contacts []Contact
 			for rows.Next() {
 				var contact Contact
-				if err := rows.Scan(&contact.ID, &contact.FirstName, &contact.LastName, &contact.StartDate, &contact.EndDate, &contact.Departure, &contact.Destination, &contact.Number, &contact.Tour, &contact.Comments); err != nil {
+				var startDate, endDate []byte
+	
+				if err := rows.Scan(&contact.ID, &contact.FirstName, &contact.LastName, &startDate, &endDate, &contact.Departure, &contact.Destination, &contact.Number, &contact.Tour, &contact.Comments); err != nil {
 					http.Error(w, "Error reading rows: "+err.Error(), http.StatusInternalServerError)
 					log.Println("Error reading rows:", err)
 					return
 				}
+	
+				contact.StartDate, err = time.Parse("2006-01-02 15:04:05", string(startDate))
+				if err != nil {
+					http.Error(w, "Error parsing start_date: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error parsing start_date:", err)
+					return
+				}
+	
+				contact.EndDate, err = time.Parse("2006-01-02 15:04:05", string(endDate))
+				if err != nil {
+					http.Error(w, "Error parsing end_date: "+err.Error(), http.StatusInternalServerError)
+					log.Println("Error parsing end_date:", err)
+					return
+				}
+	
 				contacts = append(contacts, contact)
 			}
-
+	
 			if err := rows.Err(); err != nil {
 				http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error iterating rows:", err)
 				return
 			}
-
+	
 			w.Header().Set("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(contacts); err != nil {
 				http.Error(w, "Error encoding JSON: "+err.Error(), http.StatusInternalServerError)
@@ -151,7 +168,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				log.Println("Invalid request payload:", err)
 				return
 			}
-
+	
 			db, err := getDBConnection()
 			if err != nil {
 				http.Error(w, "Database connection error: "+err.Error(), http.StatusInternalServerError)
@@ -159,7 +176,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer db.Close()
-
+	
 			stmt, err := db.Prepare("INSERT INTO contactsTours (first_name, last_name, start_date, end_date, departure, destination, number, tour, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				http.Error(w, "Error preparing statement: "+err.Error(), http.StatusInternalServerError)
@@ -167,19 +184,19 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer stmt.Close()
-
+	
 			_, err = stmt.Exec(contact.FirstName, contact.LastName, contact.StartDate, contact.EndDate, contact.Departure, contact.Destination, contact.Number, contact.Tour, contact.Comments)
 			if err != nil {
 				http.Error(w, "Error executing statement: "+err.Error(), http.StatusInternalServerError)
 				log.Println("Error executing statement:", err)
 				return
 			}
-
+	
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintln(w, "Contact added successfully")
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+		}	
 	case "/reservation":
 		if r.Method == http.MethodGet {
 			db, err := getDBConnection()
